@@ -25,7 +25,7 @@ architecture behavior of test_dec is
 		port(
 			clk        : in  std_logic;
 			rst        : in  std_logic;
-			dec_key    : in  std_logic_vector(127 downto 0);
+			key        : in  std_logic_vector(127 downto 0);
 			ciphertext : in  std_logic_vector(127 downto 0);
 			plaintext  : out std_logic_vector(127 downto 0);
 			done       : out std_logic
@@ -37,7 +37,7 @@ architecture behavior of test_dec is
 	signal clk : std_logic := '0';
 	signal rst : std_logic := '0';
 	signal ciphertext : std_logic_vector(127 downto 0);
-	signal dec_key : std_logic_vector(127 downto 0);
+	signal key : std_logic_vector(127 downto 0);
 	
 	-- Output signals
 	signal done : std_logic;
@@ -51,7 +51,7 @@ begin
 		port map(
 			clk        => clk,
 			rst        => rst,
-			dec_key    => dec_key,
+			key        => key,
 			ciphertext => ciphertext,
 			plaintext  => plaintext,
 			done       => done
@@ -75,7 +75,7 @@ begin
 		--c = 3925841d02dc09fbdc118597196a0b32
 		-- Initialize Inputs
 		ciphertext <= x"320b6a19978511dcfb09dc021d842539";
-		dec_key <= x"a60c63b6c80c3fe18925eec9a8f914d0";
+		key <= x"3c4fcf098815f7aba6d2ae2816157e2b";  -- cipher key (byte-reversed)
 		rst <= '0';
 		-- Hold reset state for one cycle		
 		wait for clk_period * 1;
@@ -95,7 +95,7 @@ begin
 		--k = 00000000000000000000000000000000
 		--c = 66E94BD4EF8A2C3B884CFA59CA342B2E		
 		ciphertext <= x"2e2b34ca59fa4c883b2c8aefd44be966";
-		dec_key <= x"8e188f6fcf51e92311e2923ecb5befb4";
+		key <= x"00000000000000000000000000000000";
 		rst <= '0';
 		-- Hold reset state for one cycle		
 		wait for clk_period * 1;

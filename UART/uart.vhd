@@ -148,7 +148,7 @@ rx_avail <= rxbuf_full and not rd;
 rx_full  <= rxbuf_full and urx_avail and not rd;
 rx_error <= urx_error;
 
-tx_busy  <= utx_busy or txbuf_full or wr;
+tx_busy  <= utx_busy or txbuf_full or wr or utx_wr;
 tx_avail <= not txbuf_full;
 
 end rtl;

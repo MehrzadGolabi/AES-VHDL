@@ -50,12 +50,12 @@ begin
 		else
 			if bitcount=0 then     -- wait for startbit
 				if rxd2='0' then     -- FOUND
-					count    <= HALFBIT;
+					count    <= HALFBIT - 1;
 					bitcount <= bitcount + 1;						
 				end if;
 			elsif bitcount=1 then  -- sample mid of startbit
 				if rxd2='0' then     -- OK
-					count    <= FULLBIT;
+					count    <= FULLBIT - 1;
 					bitcount <= bitcount + 1;
 					shiftreg <= "00000000";
 				else                -- ERROR
@@ -69,14 +69,14 @@ begin
 					dout     <= shiftreg;
 					avail    <= '1';
 				else                -- ERROR
-					count    <= FULLBIT;
+					count    <= FULLBIT - 1;
 					bitcount <= 0;
 					error    <= '1';
 				end if;
 			else
 				shiftreg(6 downto 0) <= shiftreg(7 downto 1);
 				shiftreg(7) <= rxd2;
-				count    <= FULLBIT;
+				count    <= FULLBIT - 1;
 				bitcount <= bitcount + 1;
 			end if;
 		end if;

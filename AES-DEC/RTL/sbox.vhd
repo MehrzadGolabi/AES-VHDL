@@ -286,7 +286,7 @@ begin
 			when x"fd" => output_byte <= x"54";
 			when x"fe" => output_byte <= x"bb";
 			when x"ff" => output_byte <= x"16";
-			when others => null; -- GHDL complains without this statement
+			when others => output_byte <= (others => 'X'); -- metavalue input: don't care (no latch)
 		end case;
 
 	end process lut;

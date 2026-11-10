@@ -3,6 +3,9 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity top_level is
+    generic (
+        divisor   : integer := 208
+    );
     port (
         clk       : in  std_logic;
         uart_rxd  : in  std_logic;
@@ -15,6 +18,9 @@ architecture Behavioral of top_level is
     --  Components
     --------------------------------------------------------------------------
     COMPONENT uart
+        GENERIC (
+            divisor   : integer := 208
+        );
         PORT (
             clk       : IN  std_logic;
             reset     : IN  std_logic;
@@ -36,7 +42,7 @@ architecture Behavioral of top_level is
         PORT (
             clk        : IN  std_logic;
             rst        : IN  std_logic;
-            dec_key    : IN  std_logic_vector(127 downto 0);
+            key        : IN  std_logic_vector(127 downto 0);  -- cipher key
             ciphertext : IN  std_logic_vector(127 downto 0);          
             plaintext  : OUT std_logic_vector(127 downto 0);
             done       : OUT std_logic
@@ -61,8 +67,8 @@ architecture Behavioral of top_level is
 
     constant banner : string :=
         "AES-UART DECRYPT ready (8-N-1)."                 & CR & LF &
-        "Send 16-byte HEX KEY then 16-byte CIPHERTEXT (MSB first) HEX." & CR & LF &
-        "Example:"                                        & CR & LF &
+        "Send 16 raw key bytes, then 16 raw ciphertext bytes." & CR & LF &
+        "Reply: 16 raw plaintext bytes. Example (hex):" & CR & LF &
         "key        = 2b7e151628aed2a6abf7158809cf4f3c"   & CR & LF &
         "ciphertext = 3925841d02dc09fbdc118597196a0b32"   & CR & LF &
         "plaintext  = 3243f6a8885a308d313198a2e0370734"   & CR & LF & CR & LF;
@@ -97,6 +103,7 @@ architecture Behavioral of top_level is
     signal key_reg        : std_logic_vector(127 downto 0) := (others => '0');
     signal ciphertext_reg : std_logic_vector(127 downto 0) := (others => '0');
     signal plaintext_reg  : std_logic_vector(127 downto 0);
+    signal plaintext_hold : std_logic_vector(127 downto 0) := (others => '0');
     signal aes_rst        : std_logic := '1';
     signal aes_done       : std_logic;
 
@@ -111,6 +118,9 @@ begin
     --  UART instance
     --------------------------------------------------------------------------
     Inst_uart : uart
+        GENERIC MAP(
+            divisor   => divisor
+        )
         PORT MAP(
             clk       => clk,
             reset     => reset_uart,
@@ -134,7 +144,7 @@ begin
         PORT MAP(
             clk        => clk,
             rst        => aes_rst,
-            dec_key    => key_reg,
+            key        => key_reg,
             ciphertext => ciphertext_reg,
             plaintext  => plaintext_reg,
             done       => aes_done
@@ -181,7 +191,7 @@ begin
             --  Normal flow
             ------------------------------------------------------------------
             when RESET_S =>
-                aes_rst    <= '1';      -- pulse reset
+                aes_rst    <= '1';      -- core idle (rst is active-low load)
                 key_cnt    <= 0;
                 ciph_cnt   <= 0;
                 plain_cnt  <= 0;
@@ -189,9 +199,9 @@ begin
 
             --------------------------------------------------------------  
             when RX_KEY =>
-                if rx_full = '1' then
+                if rx_avail = '1' then
                     rd <= '1';
-                    key_reg((15-key_cnt)*8+7 downto (15-key_cnt)*8) <= rxdata;
+                    key_reg(key_cnt*8+7 downto key_cnt*8) <= rxdata;
                     if key_cnt = 15 then
                         key_cnt  <= 0;
                         pr_state <= RX_CIPH;
@@ -202,9 +212,9 @@ begin
 
             --------------------------------------------------------------  
             when RX_CIPH =>
-                if rx_full = '1' then
+                if rx_avail = '1' then
                     rd <= '1';
-                    ciphertext_reg((15-ciph_cnt)*8+7 downto (15-ciph_cnt)*8) <= rxdata;
+                    ciphertext_reg(ciph_cnt*8+7 downto ciph_cnt*8) <= rxdata;
                     if ciph_cnt = 15 then
                         ciph_cnt <= 0;
                         pr_state <= AES_START;
@@ -220,13 +230,14 @@ begin
 
             when AES_WAIT =>
                 if aes_done = '1' then
+                    plaintext_hold <= plaintext_reg;
                     plain_cnt <= 0;
                     pr_state  <= TX_LOAD;
                 end if;
 
             --------------------------------------------------------------  
             when TX_LOAD =>
-                txdata <= plaintext_reg((15-plain_cnt)*8+7 downto (15-plain_cnt)*8);
+                txdata <= plaintext_hold(plain_cnt*8+7 downto plain_cnt*8);
                 wr     <= '1';
                 pr_state <= TX_SEND;
 

@@ -3,6 +3,9 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity top_level is
+    generic (
+        divisor   : integer := 208
+    );
     port (
         clk       : in  std_logic;
         uart_rxd  : in  std_logic;
@@ -15,6 +18,9 @@ architecture Behavioral of top_level is
     --  Components (unchanged)
     --------------------------------------------------------------------------
     COMPONENT uart
+        GENERIC (
+            divisor   : integer := 208
+        );
         PORT (
             clk       : IN  std_logic;
             reset     : IN  std_logic;
@@ -60,8 +66,8 @@ architecture Behavioral of top_level is
     constant LF      : character := character'val(10); -- Line feed
     constant banner  : string :=
         "AES-UART ready (8-N-1)."      & CR & LF &
-        "Send 16-byte HEX KEY then 16-byte PLAINTEXT (MSB first) HEX." & CR & LF &
-        "Example:"                    & CR & LF &
+        "Send 16 raw key bytes, then 16 raw plaintext bytes." & CR & LF &
+        "Reply: 16 raw ciphertext bytes. Example (hex):" & CR & LF &
         "key        = 2b7e151628aed2a6abf7158809cf4f3c"       & CR & LF &
         "plaintext  = 3243f6a8885a308d313198a2e0370734"       & CR & LF &
         "ciphertext = 3925841d02dc09fbdc118597196a0b32"       & CR & LF & CR & LF;
@@ -93,8 +99,9 @@ architecture Behavioral of top_level is
     --------------------------------------------------------------------------
     signal key_reg        : std_logic_vector(127 downto 0) := (others => '0');
     signal plaintext_reg  : std_logic_vector(127 downto 0) := (others => '0');
-    signal ciphertext_reg : std_logic_vector(127 downto 0);
-    signal aes_rst        : std_logic := '1';
+    signal ciphertext_reg  : std_logic_vector(127 downto 0);
+    signal ciphertext_hold : std_logic_vector(127 downto 0) := (others => '0');
+    signal aes_rst         : std_logic := '1';
     signal aes_done       : std_logic;
 
     --  Counters
@@ -108,6 +115,9 @@ begin
     --  UART instance
     --------------------------------------------------------------------------
     Inst_uart : uart
+        GENERIC MAP(
+            divisor   => divisor
+        )
         PORT MAP(
             clk       => clk,
             reset     => reset_uart,
@@ -178,16 +188,16 @@ begin
             --  Normal encryption flow (unchanged except for FINISH target)
             ------------------------------------------------------------------
             when RESET_S =>
-                aes_rst    <= '1';               -- one-cycle reset for AES
+                aes_rst    <= '1';               -- core idle (rst is active-low load)
                 key_cnt    <= 0;
                 plain_cnt  <= 0;
                 cipher_cnt <= 0;
                 pr_state   <= RX_KEY;
 
             when RX_KEY =>
-                if rx_full = '1' then
+                if rx_avail = '1' then
                     rd <= '1';
-                    key_reg((15-key_cnt)*8+7 downto (15-key_cnt)*8) <= rxdata;
+                    key_reg(key_cnt*8+7 downto key_cnt*8) <= rxdata;
                     if key_cnt = 15 then
                         key_cnt  <= 0;
                         pr_state <= RX_PLAIN;
@@ -197,9 +207,9 @@ begin
                 end if;
 
             when RX_PLAIN =>
-                if rx_full = '1' then
+                if rx_avail = '1' then
                     rd <= '1';
-                    plaintext_reg((15-plain_cnt)*8+7 downto (15-plain_cnt)*8) <= rxdata;
+                    plaintext_reg(plain_cnt*8+7 downto plain_cnt*8) <= rxdata;
                     if plain_cnt = 15 then
                         plain_cnt <= 0;
                         pr_state  <= AES_START;
@@ -214,12 +224,13 @@ begin
 
             when AES_WAIT =>
                 if aes_done = '1' then
+                    ciphertext_hold <= ciphertext_reg;
                     cipher_cnt <= 0;
                     pr_state   <= TX_LOAD;
                 end if;
 
             when TX_LOAD =>
-                txdata <= ciphertext_reg((15-cipher_cnt)*8+7 downto (15-cipher_cnt)*8);
+                txdata <= ciphertext_hold(cipher_cnt*8+7 downto cipher_cnt*8);
                 wr     <= '1';
                 pr_state <= TX_SEND;
 

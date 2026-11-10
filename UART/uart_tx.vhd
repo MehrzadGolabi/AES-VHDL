@@ -49,17 +49,17 @@ begin
 					busy     <= '1';
 					txd      <= '0';					
 					bitcount <= bitcount + 1;
-					count    <= fullbit;
+					count    <= fullbit - 1;
 				end if;
 			elsif bitcount=9 then      -- STOP BIT
 				txd         <= '1';
 				bitcount    <= 0;
-				count       <= fullbit;
+				count       <= fullbit - 1;
 			else                       -- DATA BIT
 				shiftreg(6 downto 0) <= shiftreg(7 downto 1);
 				txd         <= shiftreg(0);				
 				bitcount    <= bitcount + 1;				
-				count       <= fullbit;				
+				count       <= fullbit - 1;				
 			end if;
 		end if;
 	end if;
